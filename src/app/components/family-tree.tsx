@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Plus, User, Heart, Home } from 'lucide-react';
 import { useState } from 'react';
-import { AddMemberModal } from '@/app/components/add-member-modal';
+import { AddMemberModal } from './add-member-modal';
 
 interface Member {
   id: number;

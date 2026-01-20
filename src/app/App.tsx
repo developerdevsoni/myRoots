@@ -5,7 +5,6 @@ import { FamilyTree } from './components/family-tree';
 import { RootMatches } from './components/root-matches';
 import { LoginPage } from './components/login-page';
 import { SignupPage } from './components/signup-page';
-
 export default function App() {
   return (
     <BrowserRouter>

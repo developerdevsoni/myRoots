@@ -1,10 +1,26 @@
-import { motion, AnimatePresence } from 'motion/react';
-import { X, User, MapPin, Calendar, Heart, Users, CheckCircle, Eye } from 'lucide-react';
-import { useState } from 'react';
+import { motion, AnimatePresence } from "motion/react";
+import {
+  X,
+  User,
+  MapPin,
+  Calendar,
+  Heart,
+  Users,
+  CheckCircle,
+  Eye,
+  Upload,
+} from "lucide-react";
+import { useState } from "react";
+import { memberService } from "../../services/member.service";
+import { uploadService } from "../../services/upload.service";
+import { toast } from "sonner";
 
 interface AddMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
+  treeId: number;
+  existingMembers: any[];
+  onMemberAdded: () => void;
 }
 
 interface FormData {
@@ -15,90 +31,123 @@ interface FormData {
   relationshipType: string;
   connectTo: string;
   confirmed: boolean;
+  imageFile?: File;
+  imageUrl?: string;
 }
 
-const existingMembers = [
-  { id: '1', name: 'You', relation: 'Self' },
-  { id: '2', name: 'Mom', relation: 'Mother' },
-  { id: '3', name: 'Dad', relation: 'Father' },
-  { id: '4', name: 'Grandma Sarah', relation: 'Grandmother' },
-  { id: '5', name: 'Grandpa John', relation: 'Grandfather' },
-];
-
 const relationshipTypes = [
-  { value: 'parent', label: 'Parent', emoji: '👨‍👩' },
-  { value: 'child', label: 'Child', emoji: '👶' },
-  { value: 'sibling', label: 'Sibling', emoji: '👫' },
-  { value: 'spouse', label: 'Spouse', emoji: '💑' },
-  { value: 'grandparent', label: 'Grandparent', emoji: '👴' },
-  { value: 'other', label: 'Other Relative', emoji: '👥' },
+  { value: "parent", label: "Parent", emoji: "👨‍👩" },
+  { value: "child", label: "Child", emoji: "👶" },
+  { value: "sibling", label: "Sibling", emoji: "👫" },
+  { value: "spouse", label: "Spouse", emoji: "💑" },
+  { value: "grandparent", label: "Grandparent", emoji: "👴" },
+  { value: "other", label: "Other Relative", emoji: "👥" },
 ];
 
-export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
-  const [step, setStep] = useState<'form' | 'preview'>('form');
+export function AddMemberModal({
+  isOpen,
+  onClose,
+  treeId,
+  existingMembers,
+  onMemberAdded,
+}: AddMemberModalProps) {
+  const [step, setStep] = useState<"form" | "preview">("form");
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    fullName: '',
-    birthYear: '',
-    birthPlace: '',
+    fullName: "",
+    birthYear: "",
+    birthPlace: "",
     isLiving: true,
-    relationshipType: '',
-    connectTo: '',
+    relationshipType: "",
+    connectTo: "",
     confirmed: false,
   });
 
-  const handleInputChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: keyof FormData, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const isFormValid = () => {
     return (
-      formData.fullName.trim() !== '' &&
-      formData.birthYear.trim() !== '' &&
-      formData.birthPlace.trim() !== '' &&
-      formData.relationshipType !== '' &&
-      formData.connectTo !== '' &&
+      formData.fullName.trim() !== "" &&
+      formData.birthYear.trim() !== "" &&
+      formData.birthPlace.trim() !== "" &&
+      formData.relationshipType !== "" &&
+      formData.connectTo !== "" &&
       formData.confirmed
     );
   };
 
   const handlePreview = () => {
     if (isFormValid()) {
-      setStep('preview');
+      setStep("preview");
     }
   };
 
-  const handleConfirm = () => {
-    console.log('Adding member:', formData);
-    onClose();
-    // Reset form
+  const handleConfirm = async () => {
+    try {
+      setIsLoading(true);
+
+      let imageUrl = "";
+      if (formData.imageFile) {
+        // Upload image if selected (assuming response has url property or checks swagger)
+        // Swagger says "description: Image uploaded successfully url returned".
+        // Assuming response.data.url or similar.
+        // uploadService returns response.data.
+        const uploadRes: any = await uploadService.uploadMemberImage(
+          formData.imageFile,
+        );
+        imageUrl = uploadRes.url || uploadRes.imageUrl || "";
+      }
+
+      await memberService.addMember({
+        treeId,
+        name: formData.fullName,
+        birthDate: formData.birthYear, // Assuming year is enough or formatted
+        location: formData.birthPlace,
+        relationType: formData.relationshipType as any,
+        relatedMemberId: parseInt(formData.connectTo),
+        imageUrl,
+        gender: "unknown", // Add gender if UI has it, otherwise default
+      });
+
+      toast.success("Member added successfully!");
+      onMemberAdded();
+      onClose();
+      resetForm();
+    } catch (error) {
+      console.error("Error adding member:", error);
+      toast.error("Failed to add member");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetForm = () => {
     setFormData({
-      fullName: '',
-      birthYear: '',
-      birthPlace: '',
+      fullName: "",
+      birthYear: "",
+      birthPlace: "",
       isLiving: true,
-      relationshipType: '',
-      connectTo: '',
+      relationshipType: "",
+      connectTo: "",
       confirmed: false,
+      imageFile: undefined,
     });
-    setStep('form');
+    setStep("form");
   };
 
   const handleCancel = () => {
     onClose();
-    setStep('form');
-    setFormData({
-      fullName: '',
-      birthYear: '',
-      birthPlace: '',
-      isLiving: true,
-      relationshipType: '',
-      connectTo: '',
-      confirmed: false,
-    });
+    resetForm();
   };
 
-  const selectedMember = existingMembers.find(m => m.id === formData.connectTo);
-  const selectedRelation = relationshipTypes.find(r => r.value === formData.relationshipType);
+  const selectedMember = existingMembers.find(
+    (m) => m.id === parseInt(formData.connectTo || "0"),
+  );
+  const selectedRelation = relationshipTypes.find(
+    (r) => r.value === formData.relationshipType,
+  );
 
   return (
     <AnimatePresence>
@@ -114,7 +163,7 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            transition={{ type: 'spring', damping: 25 }}
+            transition={{ type: "spring", damping: 25 }}
             onClick={(e) => e.stopPropagation()}
             className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-white/60"
           >
@@ -127,10 +176,14 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-[#2d2d44]">
-                      {step === 'form' ? 'Add Family Member' : 'Preview Placement'}
+                      {step === "form"
+                        ? "Add Family Member"
+                        : "Preview Placement"}
                     </h2>
                     <p className="text-sm text-[#8888aa]">
-                      {step === 'form' ? 'Fill in the details below' : 'Confirm the family connection'}
+                      {step === "form"
+                        ? "Fill in the details below"
+                        : "Confirm the family connection"}
                     </p>
                   </div>
                 </div>
@@ -147,7 +200,7 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
 
             {/* Content */}
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-              {step === 'form' ? (
+              {step === "form" ? (
                 <div className="space-y-6">
                   {/* Basic Information */}
                   <div className="space-y-4">
@@ -157,13 +210,35 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     </h3>
 
                     <div>
-                      <label className="block text-sm text-[#8888aa] mb-2">Full Name *</label>
+                      <label className="block text-sm text-[#8888aa] mb-2">
+                        Full Name *
+                      </label>
                       <input
                         type="text"
                         value={formData.fullName}
-                        onChange={(e) => handleInputChange('fullName', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("fullName", e.target.value)
+                        }
                         placeholder="e.g., Sarah Johnson"
                         className="w-full px-4 py-3 rounded-2xl bg-[#f8f8ff] border border-[#d4b5ff]/30 focus:border-[#d4b5ff] focus:ring-2 focus:ring-[#d4b5ff]/20 outline-none transition-all text-[#2d2d44]"
+                      />
+                    </div>
+
+                    {/* Image Upload */}
+                    <div>
+                      <label className="block text-sm text-[#8888aa] mb-2 flex items-center gap-1">
+                        <Upload className="w-4 h-4" />
+                        Profile Photo
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleInputChange("imageFile", e.target.files[0]);
+                          }
+                        }}
+                        className="w-full px-4 py-3 rounded-2xl bg-[#f8f8ff] border border-[#d4b5ff]/30 focus:border-[#d4b5ff] focus:ring-2 focus:ring-[#d4b5ff]/20 outline-none transition-all text-[#2d2d44] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#d4b5ff] file:text-white hover:file:bg-[#b5e5ff]"
                       />
                     </div>
 
@@ -176,7 +251,9 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                         <input
                           type="text"
                           value={formData.birthYear}
-                          onChange={(e) => handleInputChange('birthYear', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("birthYear", e.target.value)
+                          }
                           placeholder="e.g., 1965"
                           className="w-full px-4 py-3 rounded-2xl bg-[#f8f8ff] border border-[#d4b5ff]/30 focus:border-[#d4b5ff] focus:ring-2 focus:ring-[#d4b5ff]/20 outline-none transition-all text-[#2d2d44]"
                         />
@@ -190,7 +267,9 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                         <input
                           type="text"
                           value={formData.birthPlace}
-                          onChange={(e) => handleInputChange('birthPlace', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("birthPlace", e.target.value)
+                          }
                           placeholder="e.g., Chicago, IL"
                           className="w-full px-4 py-3 rounded-2xl bg-[#f8f8ff] border border-[#d4b5ff]/30 focus:border-[#d4b5ff] focus:ring-2 focus:ring-[#d4b5ff]/20 outline-none transition-all text-[#2d2d44]"
                         />
@@ -198,26 +277,28 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     </div>
 
                     <div>
-                      <label className="block text-sm text-[#8888aa] mb-2">Living Status</label>
+                      <label className="block text-sm text-[#8888aa] mb-2">
+                        Living Status
+                      </label>
                       <div className="flex gap-3">
                         <motion.button
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleInputChange('isLiving', true)}
+                          onClick={() => handleInputChange("isLiving", true)}
                           className={`flex-1 px-4 py-3 rounded-2xl border-2 transition-all ${
                             formData.isLiving
-                              ? 'bg-gradient-to-r from-[#b5ffd4] to-[#b5e5ff] border-[#b5ffd4] text-[#2d2d44]'
-                              : 'bg-white border-[#d4b5ff]/30 text-[#8888aa]'
+                              ? "bg-gradient-to-r from-[#b5ffd4] to-[#b5e5ff] border-[#b5ffd4] text-[#2d2d44]"
+                              : "bg-white border-[#d4b5ff]/30 text-[#8888aa]"
                           }`}
                         >
                           Living 💚
                         </motion.button>
                         <motion.button
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleInputChange('isLiving', false)}
+                          onClick={() => handleInputChange("isLiving", false)}
                           className={`flex-1 px-4 py-3 rounded-2xl border-2 transition-all ${
                             !formData.isLiving
-                              ? 'bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] border-[#d4b5ff] text-[#2d2d44]'
-                              : 'bg-white border-[#d4b5ff]/30 text-[#8888aa]'
+                              ? "bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] border-[#d4b5ff] text-[#2d2d44]"
+                              : "bg-white border-[#d4b5ff]/30 text-[#8888aa]"
                           }`}
                         >
                           Deceased 🕊️
@@ -234,17 +315,21 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     </h3>
 
                     <div>
-                      <label className="block text-sm text-[#8888aa] mb-2">Relationship Type</label>
+                      <label className="block text-sm text-[#8888aa] mb-2">
+                        Relationship Type
+                      </label>
                       <div className="grid grid-cols-2 gap-3">
                         {relationshipTypes.map((type) => (
                           <motion.button
                             key={type.value}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleInputChange('relationshipType', type.value)}
+                            onClick={() =>
+                              handleInputChange("relationshipType", type.value)
+                            }
                             className={`px-4 py-3 rounded-2xl border-2 transition-all text-left ${
                               formData.relationshipType === type.value
-                                ? 'bg-gradient-to-r from-[#d4b5ff]/20 to-[#b5e5ff]/20 border-[#d4b5ff] text-[#2d2d44]'
-                                : 'bg-white border-[#d4b5ff]/30 text-[#8888aa] hover:border-[#d4b5ff]/60'
+                                ? "bg-gradient-to-r from-[#d4b5ff]/20 to-[#b5e5ff]/20 border-[#d4b5ff] text-[#2d2d44]"
+                                : "bg-white border-[#d4b5ff]/30 text-[#8888aa] hover:border-[#d4b5ff]/60"
                             }`}
                           >
                             <span className="mr-2">{type.emoji}</span>
@@ -255,13 +340,19 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     </div>
 
                     <div>
-                      <label className="block text-sm text-[#8888aa] mb-2">Connect To</label>
+                      <label className="block text-sm text-[#8888aa] mb-2">
+                        Connect To
+                      </label>
                       <select
                         value={formData.connectTo}
-                        onChange={(e) => handleInputChange('connectTo', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("connectTo", e.target.value)
+                        }
                         className="w-full px-4 py-3 rounded-2xl bg-[#f8f8ff] border border-[#d4b5ff]/30 focus:border-[#d4b5ff] focus:ring-2 focus:ring-[#d4b5ff]/20 outline-none transition-all text-[#2d2d44]"
                       >
-                        <option value="">Select an existing family member...</option>
+                        <option value="">
+                          Select an existing family member...
+                        </option>
                         {existingMembers.map((member) => (
                           <option key={member.id} value={member.id}>
                             {member.name} ({member.relation})
@@ -281,21 +372,27 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                         <input
                           type="checkbox"
                           checked={formData.confirmed}
-                          onChange={(e) => handleInputChange('confirmed', e.target.checked)}
+                          onChange={(e) =>
+                            handleInputChange("confirmed", e.target.checked)
+                          }
                           className="sr-only"
                         />
                         <div
                           className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
                             formData.confirmed
-                              ? 'bg-gradient-to-br from-[#b5ffd4] to-[#b5e5ff] border-[#b5ffd4]'
-                              : 'bg-white border-[#d4b5ff]/30'
+                              ? "bg-gradient-to-br from-[#b5ffd4] to-[#b5e5ff] border-[#b5ffd4]"
+                              : "bg-white border-[#d4b5ff]/30"
                           }`}
                         >
-                          {formData.confirmed && <CheckCircle className="w-4 h-4 text-white" />}
+                          {formData.confirmed && (
+                            <CheckCircle className="w-4 h-4 text-white" />
+                          )}
                         </div>
                       </div>
                       <span className="text-sm text-[#2d2d44]">
-                        I confirm that the relationship information is accurate and I understand this will update the family tree structure.
+                        I confirm that the relationship information is accurate
+                        and I understand this will update the family tree
+                        structure.
                       </span>
                     </motion.label>
                   </div>
@@ -319,8 +416,12 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#d4b5ff] to-[#b5e5ff] flex items-center justify-center shadow-lg mb-2">
                           <User className="w-10 h-10 text-white" />
                         </div>
-                        <p className="font-bold text-[#2d2d44]">{selectedMember?.name}</p>
-                        <p className="text-sm text-[#8888aa]">{selectedMember?.relation}</p>
+                        <p className="font-bold text-[#2d2d44]">
+                          {selectedMember?.name}
+                        </p>
+                        <p className="text-sm text-[#8888aa]">
+                          {selectedMember?.relation}
+                        </p>
                       </motion.div>
 
                       {/* Connection Line */}
@@ -346,7 +447,9 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#ffb5c5] to-[#fff4b5] flex items-center justify-center shadow-lg mb-2 border-2 border-[#b5ffd4] border-dashed">
                           <Heart className="w-10 h-10 text-white" />
                         </div>
-                        <p className="font-bold text-[#2d2d44]">{formData.fullName}</p>
+                        <p className="font-bold text-[#2d2d44]">
+                          {formData.fullName}
+                        </p>
                         <p className="text-sm text-[#8888aa]">New Member</p>
                       </motion.div>
                     </div>
@@ -354,24 +457,32 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
 
                   {/* Member Details Summary */}
                   <div className="p-6 rounded-2xl bg-white border border-[#d4b5ff]/20">
-                    <h4 className="font-bold text-[#2d2d44] mb-3">Member Details</h4>
+                    <h4 className="font-bold text-[#2d2d44] mb-3">
+                      Member Details
+                    </h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-[#8888aa]">Full Name:</span>
-                        <span className="text-[#2d2d44] font-medium">{formData.fullName}</span>
+                        <span className="text-[#2d2d44] font-medium">
+                          {formData.fullName}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#8888aa]">Birth Year:</span>
-                        <span className="text-[#2d2d44] font-medium">{formData.birthYear}</span>
+                        <span className="text-[#2d2d44] font-medium">
+                          {formData.birthYear}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#8888aa]">Birth Place:</span>
-                        <span className="text-[#2d2d44] font-medium">{formData.birthPlace}</span>
+                        <span className="text-[#2d2d44] font-medium">
+                          {formData.birthPlace}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#8888aa]">Status:</span>
                         <span className="text-[#2d2d44] font-medium">
-                          {formData.isLiving ? 'Living 💚' : 'Deceased 🕊️'}
+                          {formData.isLiving ? "Living 💚" : "Deceased 🕊️"}
                         </span>
                       </div>
                     </div>
@@ -392,7 +503,7 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                   Cancel
                 </motion.button>
 
-                {step === 'form' ? (
+                {step === "form" ? (
                   <motion.button
                     whileHover={{ scale: isFormValid() ? 1.02 : 1 }}
                     whileTap={{ scale: isFormValid() ? 0.98 : 1 }}
@@ -400,8 +511,8 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     disabled={!isFormValid()}
                     className={`flex-1 px-6 py-3 rounded-full font-medium transition-all ${
                       isFormValid()
-                        ? 'bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] text-[#2d2d44] shadow-lg hover:shadow-xl'
-                        : 'bg-[#e0e0f0] text-[#8888aa] cursor-not-allowed'
+                        ? "bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] text-[#2d2d44] shadow-lg hover:shadow-xl"
+                        : "bg-[#e0e0f0] text-[#8888aa] cursor-not-allowed"
                     }`}
                   >
                     Preview Placement
@@ -411,7 +522,7 @@ export function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => setStep('form')}
+                      onClick={() => setStep("form")}
                       className="flex-1 px-6 py-3 rounded-full bg-white border-2 border-[#d4b5ff]/30 text-[#2d2d44] hover:bg-[#f8f8ff] transition-colors"
                     >
                       ← Back

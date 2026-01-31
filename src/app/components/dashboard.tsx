@@ -1,13 +1,80 @@
-import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
-import { Users, GitBranch, Heart, ArrowRight, Plus } from 'lucide-react';
+import { motion } from "motion/react";
+import { Link } from "react-router-dom";
+import { Users, GitBranch, Heart, ArrowRight, Plus } from "lucide-react";
+
+import { useEffect, useState, useCallback } from "react";
+import { treeService } from "../../services/tree.service";
+import { matchService } from "../../services/match.service";
+import { CreateTreeModal } from "./create-tree-modal";
 
 export function Dashboard() {
-  const stats = [
-    { label: 'Generations', value: '4', icon: GitBranch, color: 'from-[#d4b5ff] to-[#b5e5ff]' },
-    { label: 'Members', value: '23', icon: Users, color: 'from-[#ffb5c5] to-[#fff4b5]' },
-    { label: 'Matches', value: '12', icon: Heart, color: 'from-[#b5ffd4] to-[#b5e5ff]' },
-  ];
+  const [isTreeModalOpen, setIsTreeModalOpen] = useState(false);
+  const [stats, setStats] = useState([
+    {
+      label: "Generations",
+      value: "0",
+      icon: GitBranch,
+      color: "from-[#d4b5ff] to-[#b5e5ff]",
+    },
+    {
+      label: "Members",
+      value: "0",
+      icon: Users,
+      color: "from-[#ffb5c5] to-[#fff4b5]",
+    },
+    {
+      label: "Matches",
+      value: "0",
+      icon: Heart,
+      color: "from-[#b5ffd4] to-[#b5e5ff]",
+    },
+  ]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [trees, matches] = await Promise.all([
+        treeService.getUserTrees(),
+        matchService.getMyMatches(),
+      ]);
+
+      // Calculate stats (simplified logic as we might need more details for total members)
+      // Assuming we just count trees for now or if tree object has member count
+      const totalTrees = trees.length;
+      const totalMatches = Array.isArray(matches) ? matches.length : 0;
+
+      // For accurate member count we'd need to fetch details for each tree,
+      // but for dashboard summary let's just use what we have or 0 if not available
+      // logic to be improved when backend provides aggregate stats
+
+      setStats([
+        {
+          label: "Trees",
+          value: totalTrees.toString(),
+          icon: GitBranch,
+          color: "from-[#d4b5ff] to-[#b5e5ff]",
+        },
+        // Placeholder for members count until we have an endpoint for it
+        {
+          label: "Members",
+          value: "-",
+          icon: Users,
+          color: "from-[#ffb5c5] to-[#fff4b5]",
+        },
+        {
+          label: "Matches",
+          value: totalMatches.toString(),
+          icon: Heart,
+          color: "from-[#b5ffd4] to-[#b5e5ff]",
+        },
+      ]);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fafaff] via-[#f5f0ff] to-[#f0fff5] font-['Poppins']">
@@ -23,7 +90,9 @@ export function Dashboard() {
               <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-[#d4b5ff] to-[#ffb5c5] bg-clip-text text-transparent">
                 Hey there! 👋
               </h1>
-              <p className="text-[#6b6b8b] text-lg">Your family story is beautiful</p>
+              <p className="text-[#6b6b8b] text-lg">
+                Your family story is beautiful
+              </p>
             </div>
             <Link to="/">
               <motion.button
@@ -49,11 +118,15 @@ export function Dashboard() {
               className="relative group"
             >
               <div className="p-6 rounded-3xl bg-white/60 backdrop-blur-lg border border-white/80 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                <div
+                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}
+                >
                   <stat.icon className="w-7 h-7 text-white" />
                 </div>
                 <p className="text-[#8888aa] mb-1">{stat.label}</p>
-                <p className="text-4xl font-bold text-[#2d2d44]">{stat.value}</p>
+                <p className="text-4xl font-bold text-[#2d2d44]">
+                  {stat.value}
+                </p>
               </div>
             </motion.div>
           ))}
@@ -68,17 +141,30 @@ export function Dashboard() {
         >
           <div className="p-8 rounded-3xl bg-white/60 backdrop-blur-lg border border-white/80 shadow-xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#2d2d44]">Your Family Tree</h2>
-              <Link to="/tree">
+              <h2 className="text-2xl font-bold text-[#2d2d44]">
+                Your Family Tree
+              </h2>
+              <div className="flex gap-2">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] rounded-full shadow-lg text-[#2d2d44] flex items-center gap-2"
+                  onClick={() => setIsTreeModalOpen(true)}
+                  className="px-6 py-3 bg-white hover:bg-gray-50 rounded-full shadow-lg text-[#2d2d44] border border-[#d4b5ff]/30 flex items-center gap-2"
                 >
-                  View Tree
-                  <ArrowRight className="w-5 h-5" />
+                  <Plus className="w-5 h-5" />
+                  New Tree
                 </motion.button>
-              </Link>
+                <Link to="/tree">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-6 py-3 bg-gradient-to-r from-[#d4b5ff] to-[#b5e5ff] rounded-full shadow-lg text-[#2d2d44] flex items-center gap-2"
+                  >
+                    View Tree
+                    <ArrowRight className="w-5 h-5" />
+                  </motion.button>
+                </Link>
+              </div>
             </div>
 
             {/* Mini Tree Visualization */}
@@ -100,7 +186,11 @@ export function Dashboard() {
                       <div className="h-8 w-0.5 bg-gradient-to-b from-[#d4b5ff] to-transparent mb-2"></div>
                       <motion.div
                         animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          delay: i * 0.3,
+                        }}
                         className="w-12 h-12 rounded-full bg-gradient-to-br from-[#d4b5ff] to-[#b5e5ff] shadow-md"
                       ></motion.div>
                     </div>
@@ -117,7 +207,9 @@ export function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <h2 className="text-2xl font-bold text-[#2d2d44] mb-4">Quick Actions</h2>
+          <h2 className="text-2xl font-bold text-[#2d2d44] mb-4">
+            Quick Actions
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Link to="/tree">
               <motion.div
@@ -129,8 +221,12 @@ export function Dashboard() {
                     <Plus className="w-7 h-7 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#2d2d44] mb-1">Add Family Member</h3>
-                    <p className="text-[#8888aa] text-sm">Grow your family tree</p>
+                    <h3 className="font-bold text-[#2d2d44] mb-1">
+                      Add Family Member
+                    </h3>
+                    <p className="text-[#8888aa] text-sm">
+                      Grow your family tree
+                    </p>
                   </div>
                 </div>
               </motion.div>
@@ -146,8 +242,12 @@ export function Dashboard() {
                     <Heart className="w-7 h-7 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#2d2d44] mb-1">Find Matches</h3>
-                    <p className="text-[#8888aa] text-sm">Discover connections</p>
+                    <h3 className="font-bold text-[#2d2d44] mb-1">
+                      Find Matches
+                    </h3>
+                    <p className="text-[#8888aa] text-sm">
+                      Discover connections
+                    </p>
                   </div>
                 </div>
               </motion.div>
@@ -155,6 +255,12 @@ export function Dashboard() {
           </div>
         </motion.div>
       </div>
+
+      <CreateTreeModal
+        isOpen={isTreeModalOpen}
+        onClose={() => setIsTreeModalOpen(false)}
+        onTreeCreated={fetchData}
+      />
     </div>
   );
 }

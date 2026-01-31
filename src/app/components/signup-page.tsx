@@ -1,17 +1,31 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { User, Mail, Lock, Sparkles, ArrowRight, Heart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth.service';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 export function SignupPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Signup:', { fullName, email, password });
-    // Handle signup logic here
+    setIsLoading(true);
+    try {
+      await authService.register({ email, password, name: fullName });
+      toast.success('Account created successfully! Please login.');
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Signup failed:', error);
+      toast.error(error.response?.data?.message || 'Signup failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,16 +1,31 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, Heart, Sparkles, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth.service';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login:', { email, password });
-    // Handle login logic here
+    setIsLoading(true);
+    try {
+      console.log('Logging in...', { email });
+      await authService.login({ email, password });
+      toast.success('Login successful!');
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      toast.error(error.response?.data?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

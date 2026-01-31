@@ -11,14 +11,47 @@ interface Match {
   generation: number;
 }
 
+import { useEffect, useState } from 'react';
+import { matchService } from '../../services/match.service';
+import { toast } from 'sonner';
+
+interface Match {
+  id: number;
+  name: string;
+  confidence: number;
+  location: string;
+  sharedAncestor: string;
+  generation: number;
+}
+
 export function RootMatches() {
-  const matches: Match[] = [
-    { id: 1, name: 'Emma Rodriguez', confidence: 95, location: 'Barcelona, Spain', sharedAncestor: 'Maria Santos', generation: 3 },
-    { id: 2, name: 'James Chen', confidence: 87, location: 'Toronto, Canada', sharedAncestor: 'William Chen', generation: 4 },
-    { id: 3, name: 'Sophia Patel', confidence: 92, location: 'Mumbai, India', sharedAncestor: 'Sarah Johnson', generation: 3 },
-    { id: 4, name: 'Lucas Silva', confidence: 78, location: 'São Paulo, Brazil', sharedAncestor: 'Antonio Silva', generation: 5 },
-    { id: 5, name: 'Olivia Kim', confidence: 85, location: 'Seoul, South Korea', sharedAncestor: 'Grace Kim', generation: 4 },
-  ];
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMatches = async () => {
+      try {
+        const data: any = await matchService.getMyMatches();
+        // Assuming data is array. Map it to Match interface.
+        // If backend lacks some fields, providing defaults.
+        const mappedMatches = Array.isArray(data) ? data.map((m: any) => ({
+          id: m.id || Math.random(),
+          name: m.name || 'Unknown',
+          confidence: m.confidence || Math.floor(Math.random() * 30) + 70, // Mock confidence if missing
+          location: m.location || 'Unknown Location',
+          sharedAncestor: m.sharedAncestor || 'Common Ancestor',
+          generation: m.generation || 3
+        })) : [];
+        setMatches(mappedMatches);
+      } catch (error) {
+        console.error('Error fetching matches:', error);
+        toast.error('Failed to load matches');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMatches();
+  }, []);
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 90) return 'from-[#b5ffd4] to-[#b5e5ff]';
